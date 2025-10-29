@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Distributor</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 16px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .input-group {
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #2481cc;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .category {
+            display: flex;
+            justify-content: space-between;
+            margin: 8px 0;
+            padding: 8px;
+            background: white;
+            border-radius: 6px;
+        }
+        .result-section {
+            margin-top: 20px;
+            display: none;
+        }
+        .category-config {
+    background: white;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.category-name {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.inputs {
+    display: flex;
+    gap: 8px;
+}
+
+.inputs input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.balance-positive {
+    border-left: 4px solid #4CAF50;
+}
+
+.balance-negative {
+    border-left: 4px solid #f44336;
+}
+.category-config {
+    background: white;
+    padding: 12px;
+    margin: 8px 0;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.category-name {
+    font-weight: bold;
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.inputs {
+    display: flex;
+    gap: 12px;
+}
+
+.input-with-label {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+.input-with-label label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+    font-weight: 500;
+}
+
+.inputs input {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.balance-positive {
+    border-left: 4px solid #4CAF50;
+}
+
+.balance-negative {
+    border-left: 4px solid #f44336;
+}
+
+.summary .category {
+    background: #e8f5e8;
+    border-left: 4px solid #4CAF50;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>💰 Распределение доходов</h2>
+        
+        <div class="input-group">
+            <label>Общая сумма дохода:</label>
+            <input type="number" id="totalIncome" placeholder="Введите сумму" value="314784">
+        </div>
+
+        <h3>Базовые категории:</h3>
+        <div id="categoriesConfig">
+            <!-- Категории будут генерироваться здесь -->
+        </div>
+        
+        <button onclick="calculate()">Рассчитать</button>
+        
+        <div id="distributionResult" class="result-section">
+            <h3>Результат распределения:</h3>
+            <div id="categoriesList"></div>
+        </div>
+    </div>
+
+    <script>
+        // Инициализация Telegram Web App
+        Telegram.WebApp.ready();
+        
+        // Конфигурация как в Excel (ноябрь)
+        const config = {
+            categories: [
+                { id: 'house', name: '🏠 Дом', limit: 10000, spent: 10000 },
+                { id: 'car', name: '🚗 Машина', limit: 38000, spent: 38000 },
+                { id: 'longTerm', name: '📈 Долгосрок', limit: 45000, spent: 45000 },
+                { id: 'start', name: '🚀 Старт', limit: 10000, spent: 10000 },
+                { id: 'oper', name: '💼 Опер', limit: 45000, spent: 45000 },
+                { id: 'wife', name: '👩 Жена', limit: 42000, spent: 42000 },
+                { id: 'free', name: '💎 Свободно', limit: 40000, spent: 40000 },
+                { id: 'hata', name: '🏡 ХАТА', limit: 20000, spent: 20000 },
+                { id: 'home', name: '🏠 Домой', limit: 10000, spent: 10000 }
+            ],
+            extraReserve: 0
+        };
+
+        // Показываем категории для редактирования
+       // Показываем категории для редактирования
+function renderCategories() {
+    const container = document.getElementById('categoriesConfig');
+    let html = '';
+    
+    config.categories.forEach((category, index) => {
+        html += `
+            <div class="category-config">
+                <div class="category-name">${category.name}</div>
+                <div class="inputs">
+                    <div class="input-with-label">
+                        <label>Лимит</label>
+                        <input type="number" 
+                               id="limit_${category.id}" 
+                               value="${category.limit}" 
+                               placeholder="Лимит"
+                               onchange="updateCategory('${category.id}')">
+                    </div>
+                    <div class="input-with-label">
+                        <label>Потрачено</label>
+                        <input type="number" 
+                               id="spent_${category.id}" 
+                               value="${category.spent}" 
+                               placeholder="Потрачено"
+                               onchange="updateCategory('${category.id}')">
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    container.innerHTML = html;
+}
+        // Обновляем конфигурацию при изменении полей
+        function updateCategory(categoryId) {
+            const category = config.categories.find(cat => cat.id === categoryId);
+            if (category) {
+                category.limit = parseInt(document.getElementById(`limit_${categoryId}`).value) || 0;
+                category.spent = parseInt(document.getElementById(`spent_${categoryId}`).value) || 0;
+            }
+        }
+
+       function calculate() {
+    const totalIncome = parseInt(document.getElementById('totalIncome').value);
+    if (!totalIncome || totalIncome <= 0) {
+        alert('Введите корректную сумму дохода');
+        return;
+    }
+
+    // 1. Рассчитываем остатки по каждой категории
+    const categoriesWithBalance = config.categories.map(category => {
+        const balance = category.limit - category.spent; // =D-B
+        const toSave = Math.max(0, balance); // сколько нужно отложить до лимита
+        return {
+            ...category,
+            balance: balance,
+            toSave: toSave
+        };
+    });
+
+    // 2. Общая сумма УЖЕ потраченных средств (это важно!)
+    const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
+    
+    // 3. Общая сумма, которую нужно ДОЛОЖИТЬ до лимитов
+    const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
+    
+    // 4. ПРАВИЛЬНЫЙ расчет: (доход - уже потрачено - нужно доложить) + сверхостаток
+    const remainingAfterBasics = (totalIncome - totalAlreadySpent - totalToSave) + config.extraReserve;
+    
+    // 5. Распределение остатка на 3 категории
+    const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
+    
+    // Показываем результаты
+    displayResults(categoriesWithBalance, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution);
+}
+        function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution) {
+    const resultDiv = document.getElementById('distributionResult');
+    const categoriesList = document.getElementById('categoriesList');
+    
+    resultDiv.style.display = 'block';
+    
+    let html = `
+        <div class="summary">
+            <div class="category"><span>💰 Общий доход:</span><span>${formatMoney(totalIncome)}</span></div>
+            <div class="category"><span>💸 Уже потрачено:</span><span>${formatMoney(totalAlreadySpent)}</span></div>
+            <div class="category"><span>📥 Нужно доложить до лимитов:</span><span>${formatMoney(totalToSave)}</span></div>
+            <div class="category"><span>🎯 Свободный остаток:</span><span>${formatMoney(remainingAfterBasics)}</span></div>
+        </div>
+        
+        <h4>Базовые категории (Лимит / Потрачено / К отложить):</h4>
+    `;
+    
+    // Показываем каждую категорию
+    categories.forEach(cat => {
+        const status = cat.balance >= 0 ? '✅' : '❌';
+        const balanceClass = cat.balance >= 0 ? 'balance-positive' : 'balance-negative';
+        html += `
+            <div class="category ${balanceClass}">
+                <span>${cat.name}: ${formatMoney(cat.limit)} / ${formatMoney(cat.spent)}</span>
+                <span>${status} ${formatMoney(cat.toSave)}</span>
+            </div>
+        `;
+    });
+    
+    html += `<h4>Распределение свободных средств:</h4>`;
+    
+    if (distribution > 0) {
+        html += `
+            <div class="category"><span>🚗 Машина:</span><span>${formatMoney(distribution)}</span></div>
+            <div class="category"><span>📈 Инвестиции:</span><span>${formatMoney(distribution)}</span></div>
+            <div class="category"><span>💎 Свободные:</span><span>${formatMoney(distribution)}</span></div>
+        `;
+    } else {
+        html += `<p>❌ Недостаточно средств для распределения</p>`;
+    }
+    
+    categoriesList.innerHTML = html;
+    
+     resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    
+    // Уведомление в Telegram
+    Telegram.WebApp.showAlert(`Расчет завершен! Свободных средств: ${formatMoney(remainingAfterBasics)}`);
+}
+        function formatMoney(amount) {
+            return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ₽';
+        }
+
+        // Инициализация при загрузке
+        renderCategories();
+    </script>
+</body>
+</html>
