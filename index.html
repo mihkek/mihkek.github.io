@@ -184,80 +184,143 @@
 
     let config = { ...defaultConfig };
 
-    // Сохраняем данные
+    // Надежное сохранение данных
     function saveToStorage() {
         const data = {
             categories: config.categories,
             lastIncome: document.getElementById('totalIncome').value,
-            timestamp: new Date().toISOString()
+            timestamp: new Date().toISOString(),
+            version: '1.0'
         };
         
-        // Простой способ - используем localStorage как fallback
+        // Способ 1: Telegram WebApp Data Storage (надежный)
+        try {
+            // Сохраняем каждую категорию отдельно для надежности
+            data.categories.forEach((category, index) => {
+                Telegram.WebApp.CloudStorage.setItem(`cat_${category.id}`, JSON.stringify(category));
+            });
+            // Сохраняем общие данные
+            Telegram.WebApp.CloudStorage.setItem('finance_config', JSON.stringify(data));
+            console.log('Data saved to CloudStorage');
+        } catch (e) {
+            console.log('CloudStorage error:', e);
+        }
+        
+        // Способ 2: LocalStorage как резервная копия
         try {
             localStorage.setItem('finance_data', JSON.stringify(data));
             console.log('Data saved to localStorage');
         } catch (e) {
-            console.error('Failed to save data:', e);
+            console.error('localStorage error:', e);
         }
         
-        // Пробуем CloudStorage
+        // Способ 3: SessionStorage для текущей сессии
         try {
-            Telegram.WebApp.CloudStorage.setItem('finance_data', JSON.stringify(data), (err) => {
-                if (!err) {
-                    console.log('Data saved to CloudStorage');
-                }
-            });
-        } catch (e) {
-            console.log('CloudStorage not available');
-        }
+            sessionStorage.setItem('finance_data', JSON.stringify(data));
+        } catch (e) {}
     }
 
-    // Загружаем данные
+    // Загрузка данных с приоритетами
     function loadFromStorage() {
         let loadedData = null;
         
-        // Сначала пробуем CloudStorage
+        // Пробуем все источники в порядке приоритета
+        const sources = [
+            { name: 'CloudStorage', tryLoad: tryLoadCloudStorage },
+            { name: 'localStorage', tryLoad: tryLoadLocalStorage },
+            { name: 'sessionStorage', tryLoad: tryLoadSessionStorage }
+        ];
+        
+        // Пробуем загрузить из каждого источника
+        for (let source of sources) {
+            loadedData = source.tryLoad();
+            if (loadedData) {
+                console.log(`Data loaded from ${source.name}`);
+                applyLoadedData(loadedData);
+                return;
+            }
+        }
+        
+        console.log('No saved data found, using defaults');
+    }
+
+    function tryLoadCloudStorage() {
         try {
-            Telegram.WebApp.CloudStorage.getItem('finance_data', (err, value) => {
+            // Пробуем загрузить из CloudStorage
+            let cloudData = null;
+            
+            // Сначала пробуем загрузить общий конфиг
+            Telegram.WebApp.CloudStorage.getItem('finance_config', (err, value) => {
                 if (!err && value) {
-                    loadedData = JSON.parse(value);
-                    applyLoadedData(loadedData);
-                } else {
-                    // Если CloudStorage пуст, пробуем localStorage
-                    try {
-                        const localData = localStorage.getItem('finance_data');
-                        if (localData) {
-                            loadedData = JSON.parse(localData);
-                            applyLoadedData(loadedData);
-                        }
-                    } catch (e) {
-                        console.log('No saved data found');
-                    }
+                    cloudData = JSON.parse(value);
                 }
             });
-        } catch (e) {
-            // Fallback на localStorage
-            try {
-                const localData = localStorage.getItem('finance_data');
-                if (localData) {
-                    loadedData = JSON.parse(localData);
-                    applyLoadedData(loadedData);
+            
+            // Если нет общего конфига, пробуем собрать из категорий
+            if (!cloudData) {
+                const categories = [];
+                config.categories.forEach(cat => {
+                    Telegram.WebApp.CloudStorage.getItem(`cat_${cat.id}`, (err, value) => {
+                        if (!err && value) {
+                            categories.push(JSON.parse(value));
+                        }
+                    });
+                });
+                if (categories.length > 0) {
+                    cloudData = { categories: categories };
                 }
-            } catch (e) {
-                console.log('No saved data found');
             }
+            
+            return cloudData;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function tryLoadLocalStorage() {
+        try {
+            const data = localStorage.getItem('finance_data');
+            return data ? JSON.parse(data) : null;
+        } catch (e) {
+            return null;
+        }
+    }
+
+    function tryLoadSessionStorage() {
+        try {
+            const data = sessionStorage.getItem('finance_data');
+            return data ? JSON.parse(data) : null;
+        } catch (e) {
+            return null;
         }
     }
 
     function applyLoadedData(data) {
-        if (data.categories) {
-            config.categories = data.categories;
+        if (data && data.categories) {
+            // Обновляем только те категории, которые есть в сохраненных данных
+            data.categories.forEach(savedCat => {
+                const existingCat = config.categories.find(cat => cat.id === savedCat.id);
+                if (existingCat) {
+                    existingCat.limit = savedCat.limit || existingCat.limit;
+                    existingCat.spent = savedCat.spent || existingCat.spent;
+                }
+            });
             renderCategories();
         }
-        if (data.lastIncome) {
+        if (data && data.lastIncome) {
             document.getElementById('totalIncome').value = data.lastIncome;
         }
-        console.log('Data loaded successfully');
+    }
+
+    // Функция сброса данных
+    function resetData() {
+        if (confirm('Вы уверены, что хотите сбросить все данные к начальным значениям?')) {
+            config = { ...defaultConfig };
+            document.getElementById('totalIncome').value = '';
+            renderCategories();
+            saveToStorage(); // Сохраняем сброшенные данные
+            Telegram.WebApp.showAlert('Данные сброшены к начальным значениям');
+        }
     }
 
     // Показываем категории для редактирования
@@ -300,7 +363,7 @@
         if (category) {
             category.limit = parseInt(document.getElementById(`limit_${categoryId}`).value) || 0;
             category.spent = parseInt(document.getElementById(`spent_${categoryId}`).value) || 0;
-            saveToStorage(); // Сохраняем при каждом изменении
+            saveToStorage();
         }
     }
 
@@ -382,6 +445,15 @@
             html += `<p>❌ Недостаточно средств для распределения</p>`;
         }
         
+        // Добавляем кнопку сброса
+        html += `
+            <div style="margin-top: 20px; text-align: center;">
+                <button onclick="resetData()" style="background: #ff4444; padding: 8px 16px; font-size: 14px;">
+                    🔄 Сбросить все данные
+                </button>
+            </div>
+        `;
+        
         categoriesList.innerHTML = html;
         
         // Уведомление в Telegram
@@ -398,6 +470,10 @@
     // Инициализация при загрузке
     renderCategories();
     loadFromStorage();
+    
+    // Сохраняем данные при закрытии приложения
+    Telegram.WebApp.onEvent('viewportChanged', saveToStorage);
+    Telegram.WebApp.onEvent('closing', saveToStorage);
 </script>
 </body>
 </html>
