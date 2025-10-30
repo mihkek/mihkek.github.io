@@ -394,6 +394,13 @@
             const categoriesList = document.getElementById('categoriesList');
             
             resultDiv.style.display = 'block';
+
+            // НОВЫЙ КОД: Проверяем перераспределение
+
+            const totalDistributed = totalAlreadySpent + totalToSave + (distribution > 0 ? distribution * 3 : 0);
+            const isOverDistributed = totalDistributed > totalIncome;
+            const overAmount = totalDistributed - totalIncome;
+            
              // НОВЫЙ КОД: Добавляем предупреждение если перераспределили
             let warningHtml = '';
             if (isOverDistributed) {
