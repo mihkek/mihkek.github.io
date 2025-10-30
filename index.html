@@ -183,8 +183,9 @@
             const data = {
                 categories: config.categories,
                 lastIncome: document.getElementById('totalIncome').value,
+                bonusAmount: document.getElementById('bonusAmount').value,
                 timestamp: new Date().toISOString(),
-                version: '1.1'
+                version: '1.2'
             };
             
             try {
@@ -217,30 +218,45 @@
 
         function applyLoadedData(data) {
             if (data && data.categories) {
-                data.categories.forEach(savedCat => {
-                    const existingCat = config.categories.find(cat => cat.id === savedCat.id);
-                    if (existingCat) {
-                        existingCat.limit = savedCat.limit || existingCat.limit;
-                        existingCat.spent = savedCat.spent || existingCat.spent;
-                    }
+                // Полностью заменяем категории на сохраненные
+                config.categories = data.categories.map(savedCat => {
+                    return {
+                        id: savedCat.id,
+                        name: savedCat.name,
+                        limit: savedCat.limit || defaultConfig.categories.find(c => c.id === savedCat.id)?.limit || 0,
+                        spent: savedCat.spent || 0
+                    };
                 });
                 renderCategories();
             }
             if (data && data.lastIncome) {
                 document.getElementById('totalIncome').value = data.lastIncome;
             }
+            if (data && data.bonusAmount) {
+                document.getElementById('bonusAmount').value = data.bonusAmount;
+            }
         }
 
-        // Функция сброса данных
+        // Функция сброса данных - ТЕПЕРЬ РАБОТАЕТ ПРАВИЛЬНО
         function resetData() {
             if (confirm('Вы уверены, что хотите сбросить все данные к начальным значениям?')) {
-                config = { ...defaultConfig };
+                // Полностью сбрасываем конфиг к дефолтным значениям
+                config = JSON.parse(JSON.stringify(defaultConfig));
+                
+                // Очищаем поля ввода
                 document.getElementById('totalIncome').value = '';
                 document.getElementById('bonusAmount').value = '';
+                
+                // Скрываем блоки результатов
                 document.getElementById('bonusResult').style.display = 'none';
                 document.getElementById('distributionResult').style.display = 'none';
+                
+                // Перерисовываем категории с нулевыми значениями spent
                 renderCategories();
+                
+                // Сохраняем сброшенные данные
                 saveToStorage();
+                
                 Telegram.WebApp.showAlert('Данные сброшены к начальным значениям');
                 
                 // Скролл вверх
@@ -292,6 +308,12 @@
             }
         }
 
+        // Сохраняем при изменении поля премии
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('bonusAmount').addEventListener('input', saveToStorage);
+            document.getElementById('totalIncome').addEventListener('input', saveToStorage);
+        });
+
         function calculate() {
             const totalIncome = parseInt(document.getElementById('totalIncome').value);
             if (!totalIncome || totalIncome <= 0) {
@@ -336,6 +358,9 @@
                 alert('Введите корректную сумму премии');
                 return;
             }
+
+            // Сохраняем сумму премии
+            saveToStorage();
 
             // Распределение премии на 4 категории (поровну)
             const distribution = bonusAmount / 4;
