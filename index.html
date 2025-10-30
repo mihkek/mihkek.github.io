@@ -397,9 +397,8 @@
 
             // НОВЫЙ КОД: Проверяем перераспределение
 
-            const totalDistributed = totalAlreadySpent + totalToSave + (distribution > 0 ? distribution * 3 : 0);
-            const isOverDistributed = totalDistributed > totalIncome;
-            const overAmount = totalDistributed - totalIncome;
+            const isOverDistributed = totalAlreadySpent > totalIncome;
+            const overAmount = totalAlreadySpent - totalIncome;
             
              // НОВЫЙ КОД: Добавляем предупреждение если перераспределили
             let warningHtml = '';
