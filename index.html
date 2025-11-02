@@ -198,7 +198,11 @@
                 version: STORAGE_VERSION
             };
             
+            // Сохраняем в оба хранилища для надежности
             try {
+                data.categories.forEach((category) => {
+                    Telegram.WebApp.CloudStorage.setItem(`cat_${category.id}`, JSON.stringify(category));
+                });
                 Telegram.WebApp.CloudStorage.setItem('finance_config', JSON.stringify(data));
             } catch (e) {}
             
@@ -208,25 +212,53 @@
         }
 
         function loadFromStorage() {
+            let loadedData = null;
+            
+            // Пробуем сначала localStorage
             try {
                 const localData = localStorage.getItem('finance_data');
                 if (localData) {
-                    const loadedData = JSON.parse(localData);
-                    applyLoadedData(loadedData);
+                    loadedData = JSON.parse(localData);
                 }
             } catch (e) {}
+            
+            // Если нет в localStorage, пробуем CloudStorage
+            if (!loadedData) {
+                try {
+                    Telegram.WebApp.CloudStorage.getItem('finance_config', (err, value) => {
+                        if (!err && value) {
+                            loadedData = JSON.parse(value);
+                            applyLoadedData(loadedData);
+                        }
+                    });
+                } catch (e) {}
+            }
+            
+            if (loadedData) {
+                applyLoadedData(loadedData);
+            }
         }
 
         function applyLoadedData(data) {
-            if (data?.categories) {
-                config.categories = data.categories.map(savedCat => ({
-                    ...defaultConfig.categories.find(c => c.id === savedCat.id),
-                    ...savedCat
-                }));
+            if (data && data.categories) {
+                // Восстанавливаем категории с сохраненными данными
+                config.categories = data.categories.map(savedCat => {
+                    const defaultCat = defaultConfig.categories.find(c => c.id === savedCat.id);
+                    return {
+                        id: savedCat.id,
+                        name: savedCat.name,
+                        limit: savedCat.limit || (defaultCat ? defaultCat.limit : 0),
+                        spent: savedCat.spent || 0
+                    };
+                });
                 renderCategories();
             }
-            if (data?.lastIncome) document.getElementById('totalIncome').value = data.lastIncome;
-            if (data?.bonusAmount) document.getElementById('bonusAmount').value = data.bonusAmount;
+            if (data && data.lastIncome) {
+                document.getElementById('totalIncome').value = data.lastIncome;
+            }
+            if (data && data.bonusAmount) {
+                document.getElementById('bonusAmount').value = data.bonusAmount;
+            }
         }
 
         function resetData() {
@@ -251,12 +283,18 @@
                     <div class="inputs">
                         <div class="input-with-label">
                             <label>Лимит</label>
-                            <input type="number" value="${category.limit}" 
+                            <input type="number" 
+                                   id="limit_${category.id}" 
+                                   value="${category.limit}" 
+                                   placeholder="Лимит"
                                    onchange="updateCategory('${category.id}', 'limit', this.value)">
                         </div>
                         <div class="input-with-label">
                             <label>Потрачено</label>
-                            <input type="number" value="${category.spent}" 
+                            <input type="number" 
+                                   id="spent_${category.id}" 
+                                   value="${category.spent}" 
+                                   placeholder="Потрачено"
                                    onchange="updateCategory('${category.id}', 'spent', this.value)">
                         </div>
                     </div>
@@ -274,7 +312,10 @@
 
         function calculate() {
             const totalIncome = parseInt(document.getElementById('totalIncome').value);
-            if (!totalIncome) return alert('Введите корректную сумму дохода');
+            if (!totalIncome || totalIncome <= 0) {
+                alert('Введите корректную сумму дохода');
+                return;
+            }
 
             const categoriesWithBalance = config.categories.map(category => ({
                 ...category,
@@ -285,7 +326,7 @@
             const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
             const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
             const remainingAfterBasics = totalIncome - totalAlreadySpent - totalToSave + config.extraReserve;
-            const distribution = Math.max(0, remainingAfterBasics) / 3;
+            const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
 
             saveToStorage();
             displayResults(categoriesWithBalance, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution);
@@ -293,7 +334,10 @@
 
         function calculateBonus() {
             const bonusAmount = parseInt(document.getElementById('bonusAmount').value);
-            if (!bonusAmount) return alert('Введите корректную сумму премии');
+            if (!bonusAmount || bonusAmount <= 0) {
+                alert('Введите корректную сумму премии');
+                return;
+            }
 
             saveToStorage();
             const distribution = bonusAmount / 4;
@@ -360,7 +404,8 @@
             return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ₽';
         }
 
-        document.addEventListener('DOMContentLoaded', () => {
+        // Инициализация при загрузке
+        document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('bonusAmount').addEventListener('input', saveToStorage);
             document.getElementById('totalIncome').addEventListener('input', saveToStorage);
             renderCategories();
