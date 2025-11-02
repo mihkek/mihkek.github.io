@@ -152,6 +152,10 @@
             background: #9c27b0;
             margin-top: 10px;
         }
+        .copy-button {
+            background: #ff9800;
+            margin-top: 10px;
+        }
         .edit-category-input {
             padding: 6px;
             border: 1px solid #ddd;
@@ -195,6 +199,7 @@
         
         <button onclick="resetData()" class="reset-button">🔄 Сбросить все данные</button>
         <button onclick="exportToExcel()" class="export-button">📊 Экспорт в Excel</button>
+        <button onclick="copyToClipboard()" class="copy-button">📋 Копировать отчет</button>
         
         <div id="distributionResult" class="result-section">
             <h3>Результат распределения:</h3>
@@ -393,6 +398,108 @@
             document.getElementById('bonusAmount').addEventListener('input', saveToStorage);
             document.getElementById('totalIncome').addEventListener('input', saveToStorage);
         });
+
+        // Функция копирования в буфер обмена
+        function copyToClipboard() {
+            const totalIncome = parseInt(document.getElementById('totalIncome').value) || 0;
+            const bonusAmount = parseInt(document.getElementById('bonusAmount').value) || 0;
+            
+            if (!totalIncome) {
+                alert('Сначала введите сумму дохода и выполните расчет');
+                return;
+            }
+
+            // Рассчитываем данные
+            const categoriesWithBalance = config.categories.map(category => {
+                const balance = category.limit - category.spent;
+                const toSave = Math.max(0, balance);
+                return {
+                    ...category,
+                    balance: balance,
+                    toSave: toSave
+                };
+            });
+
+            const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
+            const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
+            const remainingAfterBasics = (totalIncome - totalAlreadySpent - totalToSave) + config.extraReserve;
+            const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
+
+            // Формируем текст для копирования
+            let text = `💰 РАСПРЕДЕЛЕНИЕ ФИНАНСОВ\n`;
+            text += `📅 ${new Date().toLocaleDateString('ru-RU')}\n\n`;
+            
+            text += `ОСНОВНЫЕ ПОКАЗАТЕЛИ:\n`;
+            text += `• Общий доход: ${formatMoney(totalIncome)}\n`;
+            text += `• Уже потрачено: ${formatMoney(totalAlreadySpent)}\n`;
+            text += `• К доплате: ${formatMoney(totalToSave)}\n`;
+            text += `• Свободный остаток: ${formatMoney(remainingAfterBasics)}\n\n`;
+            
+            text += `КАТЕГОРИИ:\n`;
+            categoriesWithBalance.forEach(cat => {
+                const balance = cat.limit - cat.spent;
+                const status = balance >= 0 ? '✅' : '❌';
+                const toSaveDisplay = balance >= 0 ? 
+                    `+${formatMoney(cat.toSave)}` : 
+                    `-${formatMoney(Math.abs(balance))}`;
+                
+                text += `• ${cat.name}: ${formatMoney(cat.limit)} / ${formatMoney(cat.spent)} (${status} ${toSaveDisplay})\n`;
+            });
+            
+            text += `\n`;
+            
+            if (distribution > 0) {
+                text += `РАСПРЕДЕЛЕНИЕ СВОБОДНЫХ СРЕДСТВ:\n`;
+                text += `• Машина: ${formatMoney(distribution)}\n`;
+                text += `• Инвестиции: ${formatMoney(distribution)}\n`;
+                text += `• Свободные: ${formatMoney(distribution)}\n\n`;
+            }
+            
+            if (bonusAmount > 0) {
+                const bonusDistribution = bonusAmount / 4;
+                text += `ПРЕМИЯ:\n`;
+                text += `• Сумма премии: ${formatMoney(bonusAmount)}\n`;
+                text += `• Оперрезерв: ${formatMoney(bonusDistribution)}\n`;
+                text += `• Долгосрок: ${formatMoney(bonusDistribution)}\n`;
+                text += `• Машина: ${formatMoney(bonusDistribution)}\n`;
+                text += `• Свободные: ${formatMoney(bonusDistribution)}\n\n`;
+            }
+            
+            // Проверяем перераспределение
+            if (totalAlreadySpent > totalIncome) {
+                const overAmount = totalAlreadySpent - totalIncome;
+                text += `⚠️ ВНИМАНИЕ: Распределено сверх общей суммы: ${formatMoney(overAmount)}\n\n`;
+            }
+            
+            text += `Создано в Finance Distributor`;
+
+            // Копируем в буфер обмена
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(() => {
+                    Telegram.WebApp.showAlert('✅ Отчет скопирован в буфер обмена!');
+                }).catch(() => {
+                    fallbackCopy(text);
+                });
+            } else {
+                fallbackCopy(text);
+            }
+        }
+
+        // Fallback метод копирования
+        function fallbackCopy(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                Telegram.WebApp.showAlert('✅ Отчет скопирован в буфер обмена!');
+            } catch (err) {
+                Telegram.WebApp.showAlert('❌ Не удалось скопировать автоматически');
+                prompt('Скопируйте этот текст:', text);
+            }
+            document.body.removeChild(textArea);
+        }
 
         // Функция экспорта в Excel
         function exportToExcel() {
