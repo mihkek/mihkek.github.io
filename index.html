@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Finance Distributor</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -148,12 +147,8 @@
             background: #28a745;
             margin-top: 10px;
         }
-        .export-button {
-            background: #9c27b0;
-            margin-top: 10px;
-        }
-        .copy-button {
-            background: #ff9800;
+        .save-report-button {
+            background: #673ab7;
             margin-top: 10px;
         }
         .edit-category-input {
@@ -198,8 +193,7 @@
         </div>
         
         <button onclick="resetData()" class="reset-button">🔄 Сбросить все данные</button>
-        <button onclick="exportToExcel()" class="export-button">📊 Экспорт в Excel</button>
-        <button onclick="copyToClipboard()" class="copy-button">📋 Копировать отчет</button>
+        <button onclick="saveReport()" class="save-report-button">💾 Сохранить отчет</button>
         
         <div id="distributionResult" class="result-section">
             <h3>Результат распределения:</h3>
@@ -240,7 +234,7 @@
                 lastIncome: document.getElementById('totalIncome').value,
                 bonusAmount: document.getElementById('bonusAmount').value,
                 timestamp: new Date().toISOString(),
-                version: '1.3'
+                version: '1.4'
             };
             
             try {
@@ -399,8 +393,8 @@
             document.getElementById('totalIncome').addEventListener('input', saveToStorage);
         });
 
-        // Функция копирования в буфер обмена
-        function copyToClipboard() {
+        // Функция сохранения отчета
+        function saveReport() {
             const totalIncome = parseInt(document.getElementById('totalIncome').value) || 0;
             const bonusAmount = parseInt(document.getElementById('bonusAmount').value) || 0;
             
@@ -476,7 +470,7 @@
             // Копируем в буфер обмена
             if (navigator.clipboard && navigator.clipboard.writeText) {
                 navigator.clipboard.writeText(text).then(() => {
-                    Telegram.WebApp.showAlert('✅ Отчет скопирован в буфер обмена!');
+                    Telegram.WebApp.showAlert('✅ Отчет сохранен в буфер обмена!\n\nТеперь вы можете вставить его в любое приложение.');
                 }).catch(() => {
                     fallbackCopy(text);
                 });
@@ -493,7 +487,7 @@
             textArea.select();
             try {
                 document.execCommand('copy');
-                Telegram.WebApp.showAlert('✅ Отчет скопирован в буфер обмена!');
+                Telegram.WebApp.showAlert('✅ Отчет сохранен в буфер обмена!\n\nТеперь вы можете вставить его в любое приложение.');
             } catch (err) {
                 Telegram.WebApp.showAlert('❌ Не удалось скопировать автоматически');
                 prompt('Скопируйте этот текст:', text);
@@ -501,86 +495,6 @@
             document.body.removeChild(textArea);
         }
 
-        // Функция экспорта в Excel
-        function exportToExcel() {
-            const totalIncome = parseInt(document.getElementById('totalIncome').value) || 0;
-            const bonusAmount = parseInt(document.getElementById('bonusAmount').value) || 0;
-            
-            // Рассчитываем данные для экспорта
-            const categoriesWithBalance = config.categories.map(category => {
-                const balance = category.limit - category.spent;
-                const toSave = Math.max(0, balance);
-                return {
-                    ...category,
-                    balance: balance,
-                    toSave: toSave
-                };
-            });
-
-            const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
-            const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
-            const remainingAfterBasics = (totalIncome - totalAlreadySpent - totalToSave) + config.extraReserve;
-            const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
-
-            // Создаем данные для Excel
-            const excelData = [];
-
-            // Заголовок
-            excelData.push(['Распределение финансов от ' + new Date().toLocaleDateString('ru-RU')]);
-            excelData.push([]);
-
-            // Основные данные
-            excelData.push(['Всего пришло', totalIncome, '', '']);
-            excelData.push([]);
-            excelData.push(['', 'Потрачено', 'Остаток', 'Лимит']);
-
-            // Категории
-            config.categories.forEach(category => {
-                const balance = category.limit - category.spent;
-                excelData.push([
-                    category.name.replace(/[🏠🚗📈🚀💼👩💎🏡]/g, '').trim(),
-                    category.spent,
-                    Math.max(0, balance),
-                    category.limit
-                ]);
-            });
-
-            excelData.push([]);
-            excelData.push(['остаток', remainingAfterBasics, '', '']);
-            excelData.push([]);
-
-            // Распределение остатка
-            excelData.push(['распред остаток', '', 'отложено', 'остаток', 'лимит']);
-            excelData.push(['', 'машина', distribution, '', distribution]);
-            excelData.push(['', 'инвестиции', distribution, '', distribution]);
-            excelData.push(['', 'свободные', distribution, '', distribution]);
-
-            excelData.push([]);
-
-            // Премия
-            if (bonusAmount > 0) {
-                const bonusDistribution = bonusAmount / 4;
-                excelData.push(['Допы (премии)', '', '', '']);
-                excelData.push(['Сумма премии', bonusAmount, '', '']);
-                excelData.push(['Оперрезерв', bonusDistribution, '', '']);
-                excelData.push(['Долгосрок', bonusDistribution, '', '']);
-                excelData.push(['Машина', bonusDistribution, '', '']);
-                excelData.push(['Свободные', bonusDistribution, '', '']);
-            }
-
-            // Создаем книгу Excel
-            const ws = XLSX.utils.aoa_to_sheet(excelData);
-            const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, 'Распределение');
-
-            // Генерируем файл
-            const fileName = `распределение_финансов_${new Date().toLocaleDateString('ru-RU').replace(/\./g, '-')}.xlsx`;
-            XLSX.writeFile(wb, fileName);
-
-            Telegram.WebApp.showAlert(`Файл "${fileName}" создан!`);
-        }
-
-        // Все остальные функции остаются без изменений
         function calculate() {
             const totalIncome = parseInt(document.getElementById('totalIncome').value);
             if (!totalIncome || totalIncome <= 0) {
