@@ -158,6 +158,50 @@
             font-size: 14px;
             width: 100%;
         }
+        .import-export-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+        }
+        .import-export-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .export-button {
+            background: #17a2b8;
+        }
+        .import-button {
+            background: #6c757d;
+        }
+        .import-textarea {
+            width: 100%;
+            height: 120px;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+            box-sizing: border-box;
+            margin-bottom: 10px;
+            resize: vertical;
+        }
+        .import-actions {
+            display: flex;
+            gap: 10px;
+        }
+        .import-actions button {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        .cancel-import {
+            background: #6c757d;
+        }
+        .confirm-import {
+            background: #28a745;
+        }
     </style>
 </head>
 <body>
@@ -194,6 +238,21 @@
         
         <button onclick="resetData()" class="reset-button">🔄 Сбросить все данные</button>
         <button onclick="saveReport()" class="save-report-button">💾 Сохранить отчет</button>
+        
+        <!-- Новая секция для экспорта/импорта -->
+        <div class="import-export-section">
+            <h3>📤 Экспорт / 📥 Импорт</h3>
+            <button onclick="exportData()" class="export-button">📤 Экспорт данных</button>
+            <button onclick="showImportDialog()" class="import-button">📥 Импорт данных</button>
+            
+            <div id="importDialog" style="display: none; margin-top: 15px;">
+                <textarea id="importData" class="import-textarea" placeholder="Вставьте сюда данные для импорта..."></textarea>
+                <div class="import-actions">
+                    <button onclick="hideImportDialog()" class="cancel-import">❌ Отмена</button>
+                    <button onclick="importData()" class="confirm-import">✅ Импорт</button>
+                </div>
+            </div>
+        </div>
         
         <div id="distributionResult" class="result-section">
             <h3>Результат распределения:</h3>
@@ -493,6 +552,125 @@
                 prompt('Скопируйте этот текст:', text);
             }
             document.body.removeChild(textArea);
+        }
+
+        // НОВЫЕ ФУНКЦИИ ЭКСПОРТА/ИМПОРТА
+
+        // Экспорт данных в зашифрованном формате
+        function exportData() {
+            const exportData = {
+                categories: config.categories,
+                lastIncome: document.getElementById('totalIncome').value || '',
+                bonusAmount: document.getElementById('bonusAmount').value || '',
+                timestamp: new Date().toISOString(),
+                version: '1.5'
+            };
+
+            // Кодируем данные в base64 для компактности
+            const jsonString = JSON.stringify(exportData);
+            const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
+            
+            // Формируем специальный формат с префиксом для идентификации
+            const exportText = `FINANCE_EXPORT_v1.5|${encodedData}`;
+
+            // Копируем в буфер обмена
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(exportText).then(() => {
+                    Telegram.WebApp.showAlert('✅ Данные экспортированы в буфер обмена!\n\nТеперь вы можете вставить их на другом устройстве.');
+                }).catch(() => {
+                    fallbackCopyExport(exportText);
+                });
+            } else {
+                fallbackCopyExport(exportText);
+            }
+        }
+
+        function fallbackCopyExport(text) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                Telegram.WebApp.showAlert('✅ Данные экспортированы в буфер обмена!\n\nТеперь вы можете вставить их на другом устройстве.');
+            } catch (err) {
+                Telegram.WebApp.showAlert('❌ Не удалось скопировать автоматически');
+                prompt('Скопируйте этот текст для экспорта:', text);
+            }
+            document.body.removeChild(textArea);
+        }
+
+        // Показать диалог импорта
+        function showImportDialog() {
+            document.getElementById('importDialog').style.display = 'block';
+            document.getElementById('importData').value = '';
+            document.getElementById('importData').focus();
+        }
+
+        // Скрыть диалог импорта
+        function hideImportDialog() {
+            document.getElementById('importDialog').style.display = 'none';
+        }
+
+        // Импорт данных
+        function importData() {
+            const importText = document.getElementById('importData').value.trim();
+            
+            if (!importText) {
+                Telegram.WebApp.showAlert('❌ Введите данные для импорта');
+                return;
+            }
+
+            try {
+                // Проверяем формат данных
+                if (!importText.startsWith('FINANCE_EXPORT_')) {
+                    Telegram.WebApp.showAlert('❌ Неверный формат данных для импорта');
+                    return;
+                }
+
+                // Извлекаем закодированные данные
+                const parts = importText.split('|');
+                if (parts.length !== 2) {
+                    Telegram.WebApp.showAlert('❌ Неверный формат данных');
+                    return;
+                }
+
+                // Декодируем данные из base64
+                const decodedData = decodeURIComponent(escape(atob(parts[1])));
+                const importedData = JSON.parse(decodedData);
+
+                // Проверяем версию и структуру данных
+                if (!importedData.categories || !Array.isArray(importedData.categories)) {
+                    Telegram.WebApp.showAlert('❌ Неверная структура данных');
+                    return;
+                }
+
+                // Подтверждение импорта
+                if (confirm(`Импортировать данные?\n\nКатегорий: ${importedData.categories.length}\nДоход: ${importedData.lastIncome || 'не указан'}\nПремия: ${importedData.bonusAmount || 'не указан'}\n\nТекущие данные будут перезаписаны.`)) {
+                    // Применяем импортированные данные
+                    config.categories = importedData.categories;
+                    
+                    if (importedData.lastIncome) {
+                        document.getElementById('totalIncome').value = importedData.lastIncome;
+                    }
+                    
+                    if (importedData.bonusAmount) {
+                        document.getElementById('bonusAmount').value = importedData.bonusAmount;
+                    }
+
+                    // Обновляем интерфейс и сохраняем
+                    renderCategories();
+                    saveToStorage();
+                    hideImportDialog();
+                    
+                    Telegram.WebApp.showAlert('✅ Данные успешно импортированы!');
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+
+            } catch (error) {
+                console.error('Import error:', error);
+                Telegram.WebApp.showAlert('❌ Ошибка при импорте данных. Проверьте правильность формата.');
+            }
         }
 
         function calculate() {
