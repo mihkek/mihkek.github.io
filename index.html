@@ -440,63 +440,67 @@
             Telegram.WebApp.showAlert(`Премия распределена! По ${formatMoney(distribution)} в каждую категорию`);
         }
 
-        function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution) {
-            const resultDiv = document.getElementById('distributionResult');
-            const categoriesList = document.getElementById('categoriesList');
-            
-            resultDiv.style.display = 'block';
+      function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution) {
+    const resultDiv = document.getElementById('distributionResult');
+    const categoriesList = document.getElementById('categoriesList');
+    
+    resultDiv.style.display = 'block';
 
-            const isOverDistributed = totalAlreadySpent > totalIncome;
-            const overAmount = isOverDistributed ? totalAlreadySpent - totalIncome : 0;
-            
-            let warningHtml = '';
-            if (isOverDistributed) {
-                warningHtml = `
-                    <div style="color: #d32f2f; background: #ffebee; padding: 10px; border-radius: 6px; border: 1px solid #ffcdd2; margin-bottom: 15px; font-size: 14px;">
-                        ⚠️ Распределено сверх общей суммы: ${formatMoney(overAmount)}
-                    </div>
-                `;
-            }
+    const isOverDistributed = totalAlreadySpent > totalIncome;
+    const overAmount = isOverDistributed ? totalAlreadySpent - totalIncome : 0;
+    
+    let warningHtml = '';
+    if (isOverDistributed) {
+        warningHtml = `
+            <div style="color: #d32f2f; background: #ffebee; padding: 10px; border-radius: 6px; border: 1px solid #ffcdd2; margin-bottom: 15px; font-size: 14px;">
+                ⚠️ Распределено сверх общей суммы: ${formatMoney(overAmount)}
+            </div>
+        `;
+    }
 
-            let html = warningHtml +  `
-                <div class="summary ${isOverDistributed ? 'over-distributed' : ''}">
-                    <div class="category"><span>💰 Общий доход:</span><span>${formatMoney(totalIncome)}</span></div>
-                    <div class="category"><span>💸 Уже потрачено:</span><span>${formatMoney(totalAlreadySpent)}</span></div>
-                    <div class="category"><span>📥 Нужно доложить до лимитов:</span><span>${formatMoney(totalToSave)}</span></div>
-                    <div class="category"><span>🎯 Свободный остаток:</span><span>${formatMoney(remainingAfterBasics)}</span></div>
-                </div>
-                
-                <h4>Базовые категории (Лимит / Потрачено / К отложить):</h4>
-            `;
-            
-            categories.forEach(cat => {
-                const status = cat.balance >= 0 ? '✅' : '❌';
-                const balanceClass = cat.balance >= 0 ? 'balance-positive' : 'balance-negative';
-                html += `
-                    <div class="category ${balanceClass}">
-                        <span>${cat.name}: ${formatMoney(cat.limit)} / ${formatMoney(cat.spent)}</span>
-                        <span>${status} ${formatMoney(cat.toSave)}</span>
-                    </div>
-                `;
-            });
-            
-            html += `<h4>Распределение свободных средств:</h4>`;
-            
-            if (distribution > 0) {
-                html += `
-                    <div class="category"><span>🚗 Машина:</span><span>${formatMoney(distribution)}</span></div>
-                    <div class="category"><span>📈 Инвестиции:</span><span>${formatMoney(distribution)}</span></div>
-                    <div class="category"><span>💎 Свободные:</span><span>${formatMoney(distribution)}</span></div>
-                `;
-            } else {
-                html += `<p>❌ Недостаточно средств для распределения</p>`;
-            }
-            
-            categoriesList.innerHTML = html;
-            Telegram.WebApp.showAlert(`Расчет завершен! Свободных средств: ${formatMoney(remainingAfterBasics)}`);
-            resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
+    let html = warningHtml +  `
+        <div class="summary ${isOverDistributed ? 'over-distributed' : ''}">
+            <div class="category"><span>💰 Общий доход:</span><span>${formatMoney(totalIncome)}</span></div>
+            <div class="category"><span>💸 Уже потрачено:</span><span>${formatMoney(totalAlreadySpent)}</span></div>
+            <div class="category"><span>📥 Нужно доложить до лимитов:</span><span>${formatMoney(totalToSave)}</span></div>
+            <div class="category"><span>🎯 Свободный остаток:</span><span>${formatMoney(remainingAfterBasics)}</span></div>
+        </div>
+        
+        <h4>Базовые категории (Лимит / Потрачено / К отложить):</h4>
+    `;
+    
+    categories.forEach(cat => {
+        const balance = cat.limit - cat.spent;
+        const status = balance >= 0 ? '✅' : '❌';
+        const balanceClass = balance >= 0 ? 'balance-positive' : 'balance-negative';
+        const toSaveDisplay = balance >= 0 ? 
+            formatMoney(cat.toSave) : 
+            `<span style="color: #d32f2f;">- ${formatMoney(Math.abs(balance))}</span>`;
+        
+        html += `
+            <div class="category ${balanceClass}">
+                <span>${cat.name}: ${formatMoney(cat.limit)} / ${formatMoney(cat.spent)}</span>
+                <span>${status} ${toSaveDisplay}</span>
+            </div>
+        `;
+    });
+    
+    html += `<h4>Распределение свободных средств:</h4>`;
+    
+    if (distribution > 0) {
+        html += `
+            <div class="category"><span>🚗 Машина:</span><span>${formatMoney(distribution)}</span></div>
+            <div class="category"><span>📈 Инвестиции:</span><span>${formatMoney(distribution)}</span></div>
+            <div class="category"><span>💎 Свободные:</span><span>${formatMoney(distribution)}</span></div>
+        `;
+    } else {
+        html += `<p>❌ Недостаточно средств для распределения</p>`;
+    }
+    
+    categoriesList.innerHTML = html;
+    Telegram.WebApp.showAlert(`Расчет завершен! Свободных средств: ${formatMoney(remainingAfterBasics)}`);
+    resultDiv.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
         function formatMoney(amount) {
             return new Intl.NumberFormat('ru-RU').format(Math.round(amount)) + ' ₽';
         }
