@@ -202,6 +202,13 @@
         .confirm-import {
             background: #28a745;
         }
+        .bonus-categories-config {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border: 1px solid #e9ecef;
+        }
     </style>
 </head>
 <body>
@@ -225,6 +232,15 @@
         <!-- Секция для допов (премий) -->
         <div class="bonus-section">
             <h3>🎁 Допы (премии)</h3>
+            
+            <div class="bonus-categories-config">
+                <h4>Категории премии:</h4>
+                <div id="bonusCategoriesConfig">
+                    <!-- Категории премий будут генерироваться здесь -->
+                </div>
+                <button onclick="addNewBonusCategory()" style="background: #6f42c1; margin-top: 10px;">➕ Добавить категорию премии</button>
+            </div>
+            
             <div class="input-group">
                 <label>Сумма премии:</label>
                 <input type="number" id="bonusAmount" placeholder="Введите сумму премии">
@@ -281,6 +297,12 @@
                 { id: 'hata', name: '🏡 ХАТА', limit: 20000, spent: 0 },
                 { id: 'home', name: '🏠 Домой', limit: 10000, spent: 0 }
             ],
+            bonusCategories: [
+                { id: 'bonus_oper', name: '💼 Оперрезерв', percentage: 25 },
+                { id: 'bonus_longTerm', name: '📈 Долгосрок', percentage: 25 },
+                { id: 'bonus_car', name: '🚗 Машина', percentage: 25 },
+                { id: 'bonus_free', name: '💎 Свободные', percentage: 25 }
+            ],
             extraReserve: 0
         };
 
@@ -290,10 +312,11 @@
         function saveToStorage() {
             const data = {
                 categories: config.categories,
+                bonusCategories: config.bonusCategories,
                 lastIncome: document.getElementById('totalIncome').value,
                 bonusAmount: document.getElementById('bonusAmount').value,
                 timestamp: new Date().toISOString(),
-                version: '1.4'
+                version: '1.6'
             };
             
             try {
@@ -326,17 +349,28 @@
 
         function applyLoadedData(data) {
             if (data && data.categories) {
-                // Полностью заменяем категории на сохраненные
                 config.categories = data.categories.map(savedCat => {
                     return {
                         id: savedCat.id,
                         name: savedCat.name,
-                        limit: savedCat.limit || defaultConfig.categories.find(c => c.id === savedCat.id)?.limit || 0,
+                        limit: savedCat.limit || 0,
                         spent: savedCat.spent || 0
                     };
                 });
                 renderCategories();
             }
+            
+            if (data && data.bonusCategories) {
+                config.bonusCategories = data.bonusCategories.map(savedCat => {
+                    return {
+                        id: savedCat.id,
+                        name: savedCat.name,
+                        percentage: savedCat.percentage || 0
+                    };
+                });
+                renderBonusCategories();
+            }
+            
             if (data && data.lastIncome) {
                 document.getElementById('totalIncome').value = data.lastIncome;
             }
@@ -345,17 +379,22 @@
             }
         }
 
-        // Функция сброса данных
+        // Функция сброса данных (только цифры)
         function resetData() {
-            if (confirm('Вы уверены, что хотите сбросить все данные к начальным значениям?')) {
-                config = JSON.parse(JSON.stringify(defaultConfig));
+            if (confirm('Вы уверены, что хотите сбросить все числовые данные? Набор категорий останется прежним.')) {
+                // Сбрасываем только spent и значения полей ввода
+                config.categories.forEach(category => {
+                    category.spent = 0;
+                });
+                
                 document.getElementById('totalIncome').value = '';
                 document.getElementById('bonusAmount').value = '';
                 document.getElementById('bonusResult').style.display = 'none';
                 document.getElementById('distributionResult').style.display = 'none';
+                
                 renderCategories();
                 saveToStorage();
-                Telegram.WebApp.showAlert('Данные сброшены к начальным значениям');
+                Telegram.WebApp.showAlert('Числовые данные сброшены');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
             }
         }
@@ -374,11 +413,33 @@
             saveToStorage();
         }
 
+        // Добавление новой категории премии
+        function addNewBonusCategory() {
+            const newId = 'bonus_category_' + Date.now();
+            const newCategory = {
+                id: newId,
+                name: '🆕 Новая категория',
+                percentage: 25
+            };
+            config.bonusCategories.push(newCategory);
+            renderBonusCategories();
+            saveToStorage();
+        }
+
         // Удаление категории
         function deleteCategory(categoryId) {
             if (confirm('Вы уверены, что хотите удалить эту категорию?')) {
                 config.categories = config.categories.filter(cat => cat.id !== categoryId);
                 renderCategories();
+                saveToStorage();
+            }
+        }
+
+        // Удаление категории премии
+        function deleteBonusCategory(categoryId) {
+            if (confirm('Вы уверены, что хотите удалить эту категорию премии?')) {
+                config.bonusCategories = config.bonusCategories.filter(cat => cat.id !== categoryId);
+                renderBonusCategories();
                 saveToStorage();
             }
         }
@@ -392,6 +453,19 @@
             if (newName && newName.trim() !== '') {
                 category.name = newName.trim();
                 renderCategories();
+                saveToStorage();
+            }
+        }
+
+        // Редактирование названия категории премии
+        function editBonusCategoryName(categoryId) {
+            const category = config.bonusCategories.find(cat => cat.id === categoryId);
+            if (!category) return;
+
+            const newName = prompt('Введите новое название категории премии (можно со смайликом):', category.name);
+            if (newName && newName.trim() !== '') {
+                category.name = newName.trim();
+                renderBonusCategories();
                 saveToStorage();
             }
         }
@@ -436,6 +510,40 @@
             container.innerHTML = html;
         }
 
+        // Показываем категории премий для редактирования
+        function renderBonusCategories() {
+            const container = document.getElementById('bonusCategoriesConfig');
+            let html = '';
+            
+            config.bonusCategories.forEach((category) => {
+                html += `
+                    <div class="category-config">
+                        <div class="category-header">
+                            <div class="category-name">${category.name}</div>
+                            <div class="category-actions">
+                                <button class="category-action edit" onclick="editBonusCategoryName('${category.id}')" title="Редактировать название">✏️</button>
+                                <button class="category-action delete" onclick="deleteBonusCategory('${category.id}')" title="Удалить категорию">❌</button>
+                            </div>
+                        </div>
+                        <div class="inputs">
+                            <div class="input-with-label">
+                                <label>Процент (%)</label>
+                                <input type="number" 
+                                       id="percentage_${category.id}" 
+                                       value="${category.percentage}" 
+                                       placeholder="Процент"
+                                       min="0"
+                                       max="100"
+                                       onchange="updateBonusCategory('${category.id}')">
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+
         // Обновляем конфигурацию при изменении полей
         function updateCategory(categoryId) {
             const category = config.categories.find(cat => cat.id === categoryId);
@@ -446,7 +554,16 @@
             }
         }
 
-        // Сохраняем при изменении поля премии
+        // Обновляем конфигурацию категории премии
+        function updateBonusCategory(categoryId) {
+            const category = config.bonusCategories.find(cat => cat.id === categoryId);
+            if (category) {
+                category.percentage = parseInt(document.getElementById(`percentage_${categoryId}`).value) || 0;
+                saveToStorage();
+            }
+        }
+
+        // Сохраняем при изменении полей
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('bonusAmount').addEventListener('input', saveToStorage);
             document.getElementById('totalIncome').addEventListener('input', saveToStorage);
@@ -509,13 +626,15 @@
             }
             
             if (bonusAmount > 0) {
-                const bonusDistribution = bonusAmount / 4;
+                const totalPercentage = config.bonusCategories.reduce((sum, cat) => sum + cat.percentage, 0);
                 text += `ПРЕМИЯ:\n`;
                 text += `• Сумма премии: ${formatMoney(bonusAmount)}\n`;
-                text += `• Оперрезерв: ${formatMoney(bonusDistribution)}\n`;
-                text += `• Долгосрок: ${formatMoney(bonusDistribution)}\n`;
-                text += `• Машина: ${formatMoney(bonusDistribution)}\n`;
-                text += `• Свободные: ${formatMoney(bonusDistribution)}\n\n`;
+                
+                config.bonusCategories.forEach(cat => {
+                    const amount = (bonusAmount * cat.percentage) / totalPercentage;
+                    text += `• ${cat.name} (${cat.percentage}%): ${formatMoney(amount)}\n`;
+                });
+                text += `\n`;
             }
             
             // Проверяем перераспределение
@@ -560,10 +679,11 @@
         function exportData() {
             const exportData = {
                 categories: config.categories,
+                bonusCategories: config.bonusCategories,
                 lastIncome: document.getElementById('totalIncome').value || '',
                 bonusAmount: document.getElementById('bonusAmount').value || '',
                 timestamp: new Date().toISOString(),
-                version: '1.5'
+                version: '1.6'
             };
 
             // Кодируем данные в base64 для компактности
@@ -571,7 +691,7 @@
             const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
             
             // Формируем специальный формат с префиксом для идентификации
-            const exportText = `FINANCE_EXPORT_v1.5|${encodedData}`;
+            const exportText = `FINANCE_EXPORT_v1.6|${encodedData}`;
 
             // Копируем в буфер обмена
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -646,9 +766,13 @@
                 }
 
                 // Подтверждение импорта
-                if (confirm(`Импортировать данные?\n\nКатегорий: ${importedData.categories.length}\nДоход: ${importedData.lastIncome || 'не указан'}\nПремия: ${importedData.bonusAmount || 'не указан'}\n\nТекущие данные будут перезаписаны.`)) {
+                if (confirm(`Импортировать данные?\n\nКатегорий: ${importedData.categories.length}\nКатегорий премии: ${importedData.bonusCategories ? importedData.bonusCategories.length : 'не указано'}\nДоход: ${importedData.lastIncome || 'не указан'}\nПремия: ${importedData.bonusAmount || 'не указан'}\n\nТекущие данные будут перезаписаны.`)) {
                     // Применяем импортированные данные
                     config.categories = importedData.categories;
+                    
+                    if (importedData.bonusCategories) {
+                        config.bonusCategories = importedData.bonusCategories;
+                    }
                     
                     if (importedData.lastIncome) {
                         document.getElementById('totalIncome').value = importedData.lastIncome;
@@ -660,6 +784,7 @@
 
                     // Обновляем интерфейс и сохраняем
                     renderCategories();
+                    renderBonusCategories();
                     saveToStorage();
                     hideImportDialog();
                     
@@ -707,21 +832,34 @@
             }
 
             saveToStorage();
-            const distribution = bonusAmount / 4;
+            
+            const totalPercentage = config.bonusCategories.reduce((sum, cat) => sum + cat.percentage, 0);
             const bonusResult = document.getElementById('bonusResult');
             const bonusDistribution = document.getElementById('bonusDistribution');
             
-            bonusResult.style.display = 'block';
-            bonusDistribution.innerHTML = `
-                <div class="category"><span>💼 Оперрезерв:</span><span>${formatMoney(distribution)}</span></div>
-                <div class="category"><span>📈 Долгосрок:</span><span>${formatMoney(distribution)}</span></div>
-                <div class="category"><span>🚗 Машина:</span><span>${formatMoney(distribution)}</span></div>
-                <div class="category"><span>💎 Свободные:</span><span>${formatMoney(distribution)}</span></div>
-                <div class="category" style="background: #e8f5e8;"><span><strong>Всего премии:</strong></span><span><strong>${formatMoney(bonusAmount)}</strong></span></div>
+            let distributionHtml = '';
+            let totalDistributed = 0;
+            
+            config.bonusCategories.forEach((cat, index) => {
+                const amount = (bonusAmount * cat.percentage) / totalPercentage;
+                totalDistributed += amount;
+                distributionHtml += `
+                    <div class="category"><span>${cat.name} (${cat.percentage}%):</span><span>${formatMoney(amount)}</span></div>
+                `;
+            });
+            
+            distributionHtml += `
+                <div class="category" style="background: #e8f5e8;">
+                    <span><strong>Всего премии:</strong></span>
+                    <span><strong>${formatMoney(bonusAmount)}</strong></span>
+                </div>
             `;
             
+            bonusResult.style.display = 'block';
+            bonusDistribution.innerHTML = distributionHtml;
+            
             bonusResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            Telegram.WebApp.showAlert(`Премия распределена! По ${formatMoney(distribution)} в каждую категорию`);
+            Telegram.WebApp.showAlert(`Премия распределена по ${config.bonusCategories.length} категориям!`);
         }
 
         function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution) {
@@ -792,6 +930,7 @@
 
         // Инициализация при загрузке
         renderCategories();
+        renderBonusCategories();
         loadFromStorage();
         
         Telegram.WebApp.onEvent('viewportChanged', saveToStorage);
