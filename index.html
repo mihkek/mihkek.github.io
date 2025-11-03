@@ -209,6 +209,21 @@
             margin: 12px 0;
             border: 1px solid #e9ecef;
         }
+        .total-percentage {
+            text-align: center;
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            font-weight: bold;
+        }
+        .total-percentage.normal {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+        .total-percentage.warning {
+            background: #ffebee;
+            color: #c62828;
+        }
     </style>
 </head>
 <body>
@@ -237,6 +252,9 @@
                 <h4>Категории премии:</h4>
                 <div id="bonusCategoriesConfig">
                     <!-- Категории премий будут генерироваться здесь -->
+                </div>
+                <div id="totalPercentageDisplay" class="total-percentage normal">
+                    <!-- Общая сумма процентов будет здесь -->
                 </div>
                 <button onclick="addNewBonusCategory()" style="background: #6f42c1; margin-top: 10px;">➕ Добавить категорию премии</button>
             </div>
@@ -542,6 +560,21 @@
             });
             
             container.innerHTML = html;
+            updateTotalPercentageDisplay();
+        }
+
+        // Обновляем отображение общей суммы процентов
+        function updateTotalPercentageDisplay() {
+            const totalPercentage = config.bonusCategories.reduce((sum, cat) => sum + cat.percentage, 0);
+            const displayElement = document.getElementById('totalPercentageDisplay');
+            
+            if (totalPercentage > 100) {
+                displayElement.className = 'total-percentage warning';
+                displayElement.innerHTML = `⚠️ Общая сумма: ${totalPercentage}% (превышает 100%)`;
+            } else {
+                displayElement.className = 'total-percentage normal';
+                displayElement.innerHTML = `Общая сумма: ${totalPercentage}%`;
+            }
         }
 
         // Обновляем конфигурацию при изменении полей
@@ -560,6 +593,7 @@
             if (category) {
                 category.percentage = parseInt(document.getElementById(`percentage_${categoryId}`).value) || 0;
                 saveToStorage();
+                updateTotalPercentageDisplay();
             }
         }
 
