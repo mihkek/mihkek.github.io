@@ -224,15 +224,122 @@
             background: #ffebee;
             color: #c62828;
         }
+        .add-income-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+        }
+        .add-income-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .add-income-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .add-income-input {
+            flex: 2;
+        }
+        .total-income-display {
+            flex: 1;
+            background: #e8f5e8;
+            padding: 12px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid #4CAF50;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .copy-total-button {
+            flex: 0.5;
+            padding: 12px 8px;
+            background: #17a2b8;
+            margin-bottom: 0;
+            white-space: nowrap;
+            font-size: 14px;
+        }
+        .free-distribution-section {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #e0e0e0;
+        }
+        .free-distribution-section h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+        .free-distribution-config {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 8px;
+            margin: 12px 0;
+            border: 1px solid #e9ecef;
+        }
+        .free-category-item {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .free-category-name {
+            flex: 2;
+            font-weight: 500;
+        }
+        .free-category-percent {
+            flex: 1;
+        }
+        .free-category-percent input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .free-category-remove {
+            flex: 0.5;
+            color: #ff4444;
+            cursor: pointer;
+            text-align: center;
+            font-size: 20px;
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            width: auto;
+        }
+        .add-free-category-btn {
+            background: #6f42c1;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h2>💰 Распределение доходов</h2>
         
+        <!-- Новая секция для добавления к доходу -->
+        <div class="add-income-section">
+            <h3>➕ Добавить к доходу</h3>
+            <div class="add-income-row">
+                <div class="add-income-input">
+                    <input type="number" id="addIncome" placeholder="Сумма для добавления">
+                </div>
+                <div class="total-income-display" id="totalIncomePreview">0 ₽</div>
+                <button class="copy-total-button" onclick="copyTotalIncome()" title="Копировать общую сумму">📋</button>
+            </div>
+            <small style="color: #666;">Введите сумму для добавления к текущему доходу</small>
+        </div>
+        
         <div class="input-group">
             <label>Общая сумма дохода:</label>
-            <input type="number" id="totalIncome" placeholder="Введите сумму">
+            <input type="number" id="totalIncome" placeholder="Введите сумму" required oninvalid="this.setCustomValidity('Пожалуйста, введите сумму дохода')" oninput="this.setCustomValidity('')">
         </div>
 
         <h3>Базовые категории:</h3>
@@ -243,6 +350,20 @@
         <button onclick="addNewCategory()" class="add-category-btn">➕ Добавить категорию</button>
         
         <button onclick="calculate()">Рассчитать</button>
+        
+        <!-- Новая секция для распределения свободных средств -->
+        <div class="free-distribution-section">
+            <h3>🔄 Распределение свободных средств</h3>
+            <div class="free-distribution-config">
+                <div id="freeCategoriesConfig">
+                    <!-- Категории свободных средств будут генерироваться здесь -->
+                </div>
+                <div id="freeTotalPercentageDisplay" class="total-percentage normal">
+                    <!-- Общая сумма процентов будет здесь -->
+                </div>
+                <button onclick="addNewFreeCategory()" class="add-free-category-btn">➕ Добавить категорию</button>
+            </div>
+        </div>
         
         <!-- Секция для допов (премий) -->
         <div class="bonus-section">
@@ -261,7 +382,7 @@
             
             <div class="input-group">
                 <label>Сумма премии:</label>
-                <input type="number" id="bonusAmount" placeholder="Введите сумму премии">
+                <input type="number" id="bonusAmount" placeholder="Введите сумму премии" required oninvalid="this.setCustomValidity('Пожалуйста, введите сумму премии')" oninput="this.setCustomValidity('')">
             </div>
             <button onclick="calculateBonus()" style="background: #28a745;">Рассчитать премию</button>
             <div id="bonusResult" class="bonus-result" style="display: none;">
@@ -270,7 +391,7 @@
             </div>
         </div>
         
-        <button onclick="resetData()" class="reset-button">🔄 Сбросить все данные</button>
+        <button onclick="resetData()" class="reset-button">🔄 Сбросить числовые данные</button>
         <button onclick="saveReport()" class="save-report-button">💾 Сохранить отчет</button>
         
         <!-- Новая секция для экспорта/импорта -->
@@ -321,6 +442,11 @@
                 { id: 'bonus_car', name: '🚗 Машина', percentage: 25 },
                 { id: 'bonus_free', name: '💎 Свободные', percentage: 25 }
             ],
+            freeCategories: [
+                { id: 'free_car', name: '🚗 Машина', percentage: 33 },
+                { id: 'free_invest', name: '📈 Инвестиции', percentage: 33 },
+                { id: 'free_free', name: '💎 Свободные', percentage: 34 }
+            ],
             extraReserve: 0
         };
 
@@ -331,10 +457,11 @@
             const data = {
                 categories: config.categories,
                 bonusCategories: config.bonusCategories,
+                freeCategories: config.freeCategories,
                 lastIncome: document.getElementById('totalIncome').value,
                 bonusAmount: document.getElementById('bonusAmount').value,
                 timestamp: new Date().toISOString(),
-                version: '1.6'
+                version: '1.7'
             };
             
             try {
@@ -389,15 +516,28 @@
                 renderBonusCategories();
             }
             
+            if (data && data.freeCategories) {
+                config.freeCategories = data.freeCategories.map(savedCat => {
+                    return {
+                        id: savedCat.id,
+                        name: savedCat.name,
+                        percentage: savedCat.percentage || 0
+                    };
+                });
+                renderFreeCategories();
+            }
+            
             if (data && data.lastIncome) {
                 document.getElementById('totalIncome').value = data.lastIncome;
             }
             if (data && data.bonusAmount) {
                 document.getElementById('bonusAmount').value = data.bonusAmount;
             }
+            
+            updateTotalIncomePreview();
         }
 
-        // Функция сброса данных (только цифры)
+        // Функция сброса данных (только числа)
         function resetData() {
             if (confirm('Вы уверены, что хотите сбросить все числовые данные? Набор категорий останется прежним.')) {
                 // Сбрасываем только spent и значения полей ввода
@@ -407,13 +547,42 @@
                 
                 document.getElementById('totalIncome').value = '';
                 document.getElementById('bonusAmount').value = '';
+                document.getElementById('addIncome').value = '';
                 document.getElementById('bonusResult').style.display = 'none';
                 document.getElementById('distributionResult').style.display = 'none';
                 
                 renderCategories();
                 saveToStorage();
+                updateTotalIncomePreview();
+                
                 Telegram.WebApp.showAlert('Числовые данные сброшены');
                 window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+
+        // Функция обновления предварительного просмотра общей суммы
+        function updateTotalIncomePreview() {
+            const currentIncome = parseInt(document.getElementById('totalIncome').value) || 0;
+            const addAmount = parseInt(document.getElementById('addIncome').value) || 0;
+            const total = currentIncome + addAmount;
+            document.getElementById('totalIncomePreview').textContent = formatMoney(total);
+        }
+
+        // Функция копирования общей суммы
+        function copyTotalIncome() {
+            const total = parseInt(document.getElementById('totalIncomePreview').textContent.replace(/[^\d]/g, '')) || 0;
+            if (total > 0) {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(total.toString()).then(() => {
+                        Telegram.WebApp.showAlert(`✅ Сумма ${formatMoney(total)} скопирована!`);
+                    }).catch(() => {
+                        fallbackCopy(total.toString());
+                    });
+                } else {
+                    fallbackCopy(total.toString());
+                }
+            } else {
+                alert('Нет суммы для копирования');
             }
         }
 
@@ -444,6 +613,19 @@
             saveToStorage();
         }
 
+        // Добавление новой категории свободных средств
+        function addNewFreeCategory() {
+            const newId = 'free_category_' + Date.now();
+            const newCategory = {
+                id: newId,
+                name: '🆕 Новая категория',
+                percentage: 20
+            };
+            config.freeCategories.push(newCategory);
+            renderFreeCategories();
+            saveToStorage();
+        }
+
         // Удаление категории
         function deleteCategory(categoryId) {
             if (confirm('Вы уверены, что хотите удалить эту категорию?')) {
@@ -458,6 +640,15 @@
             if (confirm('Вы уверены, что хотите удалить эту категорию премии?')) {
                 config.bonusCategories = config.bonusCategories.filter(cat => cat.id !== categoryId);
                 renderBonusCategories();
+                saveToStorage();
+            }
+        }
+
+        // Удаление категории свободных средств
+        function deleteFreeCategory(categoryId) {
+            if (confirm('Вы уверены, что хотите удалить эту категорию?')) {
+                config.freeCategories = config.freeCategories.filter(cat => cat.id !== categoryId);
+                renderFreeCategories();
                 saveToStorage();
             }
         }
@@ -488,6 +679,19 @@
             }
         }
 
+        // Редактирование названия категории свободных средств
+        function editFreeCategoryName(categoryId) {
+            const category = config.freeCategories.find(cat => cat.id === categoryId);
+            if (!category) return;
+
+            const newName = prompt('Введите новое название категории (можно со смайликом):', category.name);
+            if (newName && newName.trim() !== '') {
+                category.name = newName.trim();
+                renderFreeCategories();
+                saveToStorage();
+            }
+        }
+
         // Показываем категории для редактирования
         function renderCategories() {
             const container = document.getElementById('categoriesConfig');
@@ -510,7 +714,8 @@
                                        id="limit_${category.id}" 
                                        value="${category.limit}" 
                                        placeholder="Лимит"
-                                       onchange="updateCategory('${category.id}')">
+                                       onchange="updateCategory('${category.id}')"
+                                       required>
                             </div>
                             <div class="input-with-label">
                                 <label>Потрачено</label>
@@ -518,7 +723,8 @@
                                        id="spent_${category.id}" 
                                        value="${category.spent}" 
                                        placeholder="Потрачено"
-                                       onchange="updateCategory('${category.id}')">
+                                       onchange="updateCategory('${category.id}')"
+                                       required>
                             </div>
                         </div>
                     </div>
@@ -552,7 +758,8 @@
                                        placeholder="Процент"
                                        min="0"
                                        max="100"
-                                       onchange="updateBonusCategory('${category.id}')">
+                                       onchange="updateBonusCategory('${category.id}')"
+                                       required>
                             </div>
                         </div>
                     </div>
@@ -563,7 +770,38 @@
             updateTotalPercentageDisplay();
         }
 
-        // Обновляем отображение общей суммы процентов
+        // Показываем категории свободных средств для редактирования
+        function renderFreeCategories() {
+            const container = document.getElementById('freeCategoriesConfig');
+            let html = '';
+            
+            config.freeCategories.forEach((category) => {
+                html += `
+                    <div class="free-category-item">
+                        <div class="free-category-name">
+                            <button class="category-action edit" onclick="editFreeCategoryName('${category.id}')" title="Редактировать название" style="font-size: 14px; background: none; border: none; color: #2481cc; cursor: pointer; padding: 0; margin-right: 5px;">✏️</button>
+                            ${category.name}
+                        </div>
+                        <div class="free-category-percent">
+                            <input type="number" 
+                                   id="free_percentage_${category.id}" 
+                                   value="${category.percentage}" 
+                                   placeholder="%"
+                                   min="0"
+                                   max="100"
+                                   onchange="updateFreeCategory('${category.id}')"
+                                   required>
+                        </div>
+                        <button class="free-category-remove" onclick="deleteFreeCategory('${category.id}')" title="Удалить категорию">❌</button>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+            updateFreeTotalPercentageDisplay();
+        }
+
+        // Обновляем отображение общей суммы процентов для премий
         function updateTotalPercentageDisplay() {
             const totalPercentage = config.bonusCategories.reduce((sum, cat) => sum + cat.percentage, 0);
             const displayElement = document.getElementById('totalPercentageDisplay');
@@ -571,6 +809,20 @@
             if (totalPercentage > 100) {
                 displayElement.className = 'total-percentage warning';
                 displayElement.innerHTML = `⚠️ Общая сумма: ${totalPercentage}% (превышает 100%)`;
+            } else {
+                displayElement.className = 'total-percentage normal';
+                displayElement.innerHTML = `Общая сумма: ${totalPercentage}%`;
+            }
+        }
+
+        // Обновляем отображение общей суммы процентов для свободных средств
+        function updateFreeTotalPercentageDisplay() {
+            const totalPercentage = config.freeCategories.reduce((sum, cat) => sum + cat.percentage, 0);
+            const displayElement = document.getElementById('freeTotalPercentageDisplay');
+            
+            if (Math.abs(totalPercentage - 100) > 0.01) {
+                displayElement.className = 'total-percentage warning';
+                displayElement.innerHTML = `⚠️ Общая сумма: ${totalPercentage}% (должно быть 100%)`;
             } else {
                 displayElement.className = 'total-percentage normal';
                 displayElement.innerHTML = `Общая сумма: ${totalPercentage}%`;
@@ -597,10 +849,24 @@
             }
         }
 
+        // Обновляем конфигурацию категории свободных средств
+        function updateFreeCategory(categoryId) {
+            const category = config.freeCategories.find(cat => cat.id === categoryId);
+            if (category) {
+                category.percentage = parseInt(document.getElementById(`free_percentage_${categoryId}`).value) || 0;
+                saveToStorage();
+                updateFreeTotalPercentageDisplay();
+            }
+        }
+
         // Сохраняем при изменении полей
         document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('bonusAmount').addEventListener('input', saveToStorage);
-            document.getElementById('totalIncome').addEventListener('input', saveToStorage);
+            document.getElementById('totalIncome').addEventListener('input', function() {
+                saveToStorage();
+                updateTotalIncomePreview();
+            });
+            document.getElementById('addIncome').addEventListener('input', updateTotalIncomePreview);
         });
 
         // Функция сохранения отчета
@@ -627,7 +893,7 @@
             const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
             const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
             const remainingAfterBasics = (totalIncome - totalAlreadySpent - totalToSave) + config.extraReserve;
-            const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
+            const remainingAfterSpent = totalIncome - totalAlreadySpent;
 
             // Формируем текст для копирования
             let text = `💰 РАСПРЕДЕЛЕНИЕ ФИНАНСОВ\n`;
@@ -636,6 +902,7 @@
             text += `ОСНОВНЫЕ ПОКАЗАТЕЛИ:\n`;
             text += `• Общий доход: ${formatMoney(totalIncome)}\n`;
             text += `• Уже потрачено: ${formatMoney(totalAlreadySpent)}\n`;
+            text += `• Остаток с учетом потраченного: ${formatMoney(remainingAfterSpent)}\n`;
             text += `• К доплате: ${formatMoney(totalToSave)}\n`;
             text += `• Свободный остаток: ${formatMoney(remainingAfterBasics)}\n\n`;
             
@@ -652,11 +919,14 @@
             
             text += `\n`;
             
-            if (distribution > 0) {
-                text += `РАСПРЕДЕЛЕНИЕ СВОБОДНЫХ СРЕДСТВ:\n`;
-                text += `• Машина: ${formatMoney(distribution)}\n`;
-                text += `• Инвестиции: ${formatMoney(distribution)}\n`;
-                text += `• Свободные: ${formatMoney(distribution)}\n\n`;
+            if (remainingAfterBasics > 0) {
+                const totalFreePercentage = config.freeCategories.reduce((sum, cat) => sum + cat.percentage, 0);
+                text += `РАСПРЕДЕЛЕНИЕ СВОБОДНЫХ СРЕДСТВ (${formatMoney(remainingAfterBasics)}):\n`;
+                config.freeCategories.forEach(cat => {
+                    const amount = (remainingAfterBasics * cat.percentage) / totalFreePercentage;
+                    text += `• ${cat.name} (${cat.percentage}%): ${formatMoney(amount)}\n`;
+                });
+                text += `\n`;
             }
             
             if (bonusAmount > 0) {
@@ -714,10 +984,11 @@
             const exportData = {
                 categories: config.categories,
                 bonusCategories: config.bonusCategories,
+                freeCategories: config.freeCategories,
                 lastIncome: document.getElementById('totalIncome').value || '',
                 bonusAmount: document.getElementById('bonusAmount').value || '',
                 timestamp: new Date().toISOString(),
-                version: '1.6'
+                version: '1.7'
             };
 
             // Кодируем данные в base64 для компактности
@@ -725,7 +996,7 @@
             const encodedData = btoa(unescape(encodeURIComponent(jsonString)));
             
             // Формируем специальный формат с префиксом для идентификации
-            const exportText = `FINANCE_EXPORT_v1.6|${encodedData}`;
+            const exportText = `FINANCE_EXPORT_v1.7|${encodedData}`;
 
             // Копируем в буфер обмена
             if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -808,6 +1079,10 @@
                         config.bonusCategories = importedData.bonusCategories;
                     }
                     
+                    if (importedData.freeCategories) {
+                        config.freeCategories = importedData.freeCategories;
+                    }
+                    
                     if (importedData.lastIncome) {
                         document.getElementById('totalIncome').value = importedData.lastIncome;
                     }
@@ -819,6 +1094,7 @@
                     // Обновляем интерфейс и сохраняем
                     renderCategories();
                     renderBonusCategories();
+                    renderFreeCategories();
                     saveToStorage();
                     hideImportDialog();
                     
@@ -852,10 +1128,10 @@
             const totalAlreadySpent = config.categories.reduce((sum, cat) => sum + cat.spent, 0);
             const totalToSave = categoriesWithBalance.reduce((sum, cat) => sum + cat.toSave, 0);
             const remainingAfterBasics = (totalIncome - totalAlreadySpent - totalToSave) + config.extraReserve;
-            const distribution = remainingAfterBasics > 0 ? remainingAfterBasics / 3 : 0;
+            const remainingAfterSpent = totalIncome - totalAlreadySpent;
 
             saveToStorage();
-            displayResults(categoriesWithBalance, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution);
+            displayResults(categoriesWithBalance, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, remainingAfterSpent);
         }
 
         function calculateBonus() {
@@ -872,11 +1148,9 @@
             const bonusDistribution = document.getElementById('bonusDistribution');
             
             let distributionHtml = '';
-            let totalDistributed = 0;
             
             config.bonusCategories.forEach((cat, index) => {
                 const amount = (bonusAmount * cat.percentage) / totalPercentage;
-                totalDistributed += amount;
                 distributionHtml += `
                     <div class="category"><span>${cat.name} (${cat.percentage}%):</span><span>${formatMoney(amount)}</span></div>
                 `;
@@ -896,7 +1170,7 @@
             Telegram.WebApp.showAlert(`Премия распределена по ${config.bonusCategories.length} категориям!`);
         }
 
-        function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, distribution) {
+        function displayResults(categories, totalIncome, totalAlreadySpent, totalToSave, remainingAfterBasics, remainingAfterSpent) {
             const resultDiv = document.getElementById('distributionResult');
             const categoriesList = document.getElementById('categoriesList');
             
@@ -918,6 +1192,7 @@
                 <div class="summary ${isOverDistributed ? 'over-distributed' : ''}">
                     <div class="category"><span>💰 Общий доход:</span><span>${formatMoney(totalIncome)}</span></div>
                     <div class="category"><span>💸 Уже потрачено:</span><span>${formatMoney(totalAlreadySpent)}</span></div>
+                    <div class="category"><span>📊 Остаток с учетом потраченного:</span><span>${formatMoney(remainingAfterSpent)}</span></div>
                     <div class="category"><span>📥 Нужно доложить до лимитов:</span><span>${formatMoney(totalToSave)}</span></div>
                     <div class="category"><span>🎯 Свободный остаток:</span><span>${formatMoney(remainingAfterBasics)}</span></div>
                 </div>
@@ -941,16 +1216,19 @@
                 `;
             });
             
-            html += `<h4>Распределение свободных средств:</h4>`;
-            
-            if (distribution > 0) {
-                html += `
-                    <div class="category"><span>🚗 Машина:</span><span>${formatMoney(distribution)}</span></div>
-                    <div class="category"><span>📈 Инвестиции:</span><span>${formatMoney(distribution)}</span></div>
-                    <div class="category"><span>💎 Свободные:</span><span>${formatMoney(distribution)}</span></div>
-                `;
-            } else {
-                html += `<p>❌ Недостаточно средств для распределения</p>`;
+            if (remainingAfterBasics > 0) {
+                const totalFreePercentage = config.freeCategories.reduce((sum, cat) => sum + cat.percentage, 0);
+                html += `<h4>Распределение свободных средств (${formatMoney(remainingAfterBasics)}):</h4>`;
+                
+                config.freeCategories.forEach(cat => {
+                    const amount = (remainingAfterBasics * cat.percentage) / totalFreePercentage;
+                    html += `
+                        <div class="category">
+                            <span>${cat.name} (${cat.percentage}%):</span>
+                            <span>${formatMoney(amount)}</span>
+                        </div>
+                    `;
+                });
             }
             
             categoriesList.innerHTML = html;
@@ -965,6 +1243,7 @@
         // Инициализация при загрузке
         renderCategories();
         renderBonusCategories();
+        renderFreeCategories();
         loadFromStorage();
         
         Telegram.WebApp.onEvent('viewportChanged', saveToStorage);
